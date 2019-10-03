@@ -347,6 +347,24 @@ declare namespace $RefParser {
     circular: boolean
 
     /**
+     * A map of paths/urls to {@link $Ref} objects
+     *
+     * @type {object}
+     * @protected
+     */
+    _$refs: {
+      [path: string]: $Ref
+    }
+
+    /**
+     * The {@link $Ref} object that is the root of the JSON schema.
+     *
+     * @type {$Ref}
+     * @protected
+     */
+    _root$Ref: $Ref
+
+    /**
      * Returns the paths/URLs of all the files in your schema (including the main schema file).
      *
      * See https://github.com/APIDevTools/json-schema-ref-parser/blob/master/docs/refs.md#pathstypes
@@ -389,6 +407,158 @@ declare namespace $RefParser {
      * @param value The value to assign. Can be anything (object, string, number, etc.)
      */
     set($ref: string, value: JSONSchemaType): void
+
+    /**
+     * Returns the specified {@link $Ref} object, or undefined.
+     *
+     * @param {string} path - The path being resolved, optionally with a JSON pointer in the hash
+     * @returns {$Ref|undefined}
+     * @protected
+     */
+    _get$Ref(path: string): $Ref | undefined
   }
 
+  export class $Ref {
+    /**
+     * The file path or URL of the referenced file.
+     * This path is relative to the path of the main JSON schema file.
+     *
+     * This path does NOT contain document fragments (JSON pointers). It always references an ENTIRE file.
+     * Use methods such as {@link $Ref#get}, {@link $Ref#resolve}, and {@link $Ref#exists} to get
+     * specific JSON pointers within the file.
+     *
+     * @type {string}
+     */
+    path: string
+
+    /**
+     * The resolved value of the JSON reference.
+     * Can be any JSON type, not just objects. Unknown file types are represented as Buffers (byte arrays).
+     * @type {?*}
+     */
+    value?: unknown
+
+    /**
+     * The {@link $Refs} object that contains this {@link $Ref} object.
+     * @type {$Refs}
+     */
+    $refs: $Refs
+
+    /**
+     * Indicates the type of {@link $Ref#path} (e.g. "file", "http", etc.)
+     * @type {?string}
+     */
+    pathType?: string
+
+    /**
+     * Determines whether the given JSON reference exists within this {@link $Ref#value}.
+     *
+     * @param {string} path - The full path being resolved, optionally with a JSON pointer in the hash
+     * @param {$RefParserOptions} options
+     * @returns {boolean}
+     */
+    exists(path: string, options: $RefParser.Options): boolean
+
+    /**
+     * Resolves the given JSON reference and returns the resolved value.
+     *
+     * @param {string} path - The path being resolved, with a JSON pointer in the hash
+     * @param {$RefParserOptions} [options]
+     * @returns {*} - Returns the resolved value
+     */
+    get(path: string, options: $RefParser.Options): unknown
+
+    /**
+     * Sets the value of a nested property within this {@link $Ref#value}.
+     * If the property, or any of its parents don't exist, they will be created.
+     *
+     * @param {string} path - The path of the property to set, optionally with a JSON pointer in the hash
+     * @param {*} value - The value to assign
+     */
+    set(path: string, value: unknown): void
+
+    /**
+     * Determines whether the given value is a JSON reference that "extends" its resolved value.
+     * That is, it has extra properties (in addition to "$ref"), so rather than simply pointing to
+     * an existing value, this $ref actually creates a NEW value that is a shallow copy of the resolved
+     * value, plus the extra properties.
+     *
+     * @example:
+     *  {
+     *    person: {
+     *      properties: {
+     *        firstName: { type: string }
+     *        lastName: { type: string }
+     *      }
+     *    }
+     *    employee: {
+     *      properties: {
+     *        $ref: #/person/properties
+     *        salary: { type: number }
+     *      }
+     *    }
+     *  }
+     *
+     *  In this example, "employee" is an extended $ref, since it extends "person" with an additional
+     *  property (salary).  The result is a NEW value that looks like this:
+     *
+     *  {
+     *    properties: {
+     *      firstName: { type: string }
+     *      lastName: { type: string }
+     *      salary: { type: number }
+     *    }
+     *  }
+     *
+     * @param {*} value - The value to inspect
+     * @returns {boolean}
+     */
+    static isExtended$Ref(value: any): boolean
+
+    /**
+     * Returns the resolved value of a JSON Reference.
+     * If necessary, the resolved value is merged with the JSON Reference to create a new object
+     *
+     * @example:
+     *  {
+     *    person: {
+     *      properties: {
+     *        firstName: { type: string }
+     *        lastName: { type: string }
+     *      }
+     *    }
+     *    employee: {
+     *      properties: {
+     *        $ref: #/person/properties
+     *        salary: { type: number }
+     *      }
+     *    }
+     *  }
+     *
+     *  When "person" and "employee" are merged, you end up with the following object:
+     *
+     *  {
+     *    properties: {
+     *      firstName: { type: string }
+     *      lastName: { type: string }
+     *      salary: { type: number }
+     *    }
+     *  }
+     *
+     * @param {object} $ref - The JSON reference object (the one with the "$ref" property)
+     * @param {*} resolvedValue - The resolved value, which can be any type
+     * @returns {*} - Returns the dereferenced value
+     */
+    static dereference($ref: $Ref, resolvedValue: any): any
+
+    /**
+     * Determines whether the given value is a JSON reference, and whether it is allowed by the options.
+     * For example, if it references an external file, then options.resolve.external must be true.
+     *
+     * @param {*} value - The value to inspect
+     * @param {$RefParserOptions} options
+     * @returns {boolean}
+     */
+    static isAllowed$Ref(value: any, options: $RefParser.Options): boolean
+  }
 }
